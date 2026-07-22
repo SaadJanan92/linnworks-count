@@ -427,7 +427,7 @@ function updateHero() {
   const entries = Object.values(counted);
   const skus    = entries.length;
   const units   = entries.reduce((s, i) => s + i.countedQty, 0);
-  const changes = calcDiff().length;
+  const changes = calcDiff().reduce((s, c) => s + Math.abs(c.delta), 0);
   document.getElementById('rackHero').innerHTML = curBinRack ? `
     <div class="rack-hero" style="margin-bottom:12px;">
       <div>
