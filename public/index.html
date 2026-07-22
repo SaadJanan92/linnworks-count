@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Stock Count</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+/* ── Login ── */
+#loginScreen { position: fixed; inset: 0; background: #1a1a2e; display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+#loginScreen.hidden { display: none; }
+.login-card { background: white; border-radius: 16px; padding: 32px 28px; width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+.login-logo { font-size: 32px; text-align: center; margin-bottom: 6px; }
+.login-title { font-size: 20px; font-weight: 700; text-align: center; color: #1a1a2e; margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: #888; text-align: center; margin-bottom: 28px; }
+.login-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.login-field label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.login-field input { padding: 14px; border: 2px solid #e0e4ef; border-radius: 8px; font-size: 16px; font-family: inherit; outline: none; background: #fafbff; color: #1a1a2e; -webkit-appearance: none; }
+.login-field input:focus { border-color: #1a1a2e; }
+.login-error { background: #fee2e2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; display: none; }
+.login-error.show { display: block; }
+.btn-login { width: 100%; padding: 14px; background: #1a1a2e; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.btn-login:disabled { background: #b0b3c0; }
+
+/* ── App ── */
+#mainApp { display: none; }
+#mainApp.visible { display: block; }
+header { background: #1a1a2e; color: white; padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+header h1 { font-size: 15px; font-weight: 700; }
+.header-right { display: flex; align-items: center; gap: 6px; }
+#userBadge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: #f59e0b; color: white; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#historyBtn, #logoutBtn { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 20px; background: rgba(255,255,255,0.15); color: white; border: none; cursor: pointer; font-family: inherit; white-space: nowrap; }
+
+.container { max-width: 600px; margin: 0 auto; padding: 12px 14px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.card { background: white; border-radius: 10px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 10px; }
+.card-title { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+
+select, input[type="text"] { width: 100%; padding: 13px 12px; border: 2px solid #e0e4ef; border-radius: 8px; font-size: 16px; font-family: inherit; outline: none; background: #fafbff; color: #1a1a2e; -webkit-appearance: none; }
+select:focus, input[type="text"]:focus { border-color: #1a1a2e; }
+input.filled  { border-color: #f59e0b; background: #fffbeb; }
+input.active  { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+button { padding: 13px 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+.btn-dark   { background: #1a1a2e; color: white; width: 100%; }
+.btn-amber  { background: #f59e0b; color: white; }
+.btn-green  { background: #00c896; color: white; }
+.btn-red    { background: #fee2e2; color: #dc2626; padding: 8px 12px; font-size: 13px; }
+.btn-dark:disabled, .btn-amber:disabled, .btn-green:disabled { background: #b0b3c0; cursor: not-allowed; }
+
+/* ── Bin rack hero ── */
+.rack-hero { background: #1a1a2e; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.rack-hero .name  { font-size: 30px; font-weight: 900; color: #f59e0b; letter-spacing: 2px; }
+.rack-hero .label { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+.rack-hero .loc   { font-size: 12px; color: #aaa; margin-top: 2px; }
+.rack-stats { display: flex; gap: 16px; }
+.rstat-val  { font-size: 22px; font-weight: 900; color: white; text-align: center; }
+.rstat-lbl  { font-size: 10px; color: #666; text-transform: uppercase; text-align: center; }
+
+/* ── Item rows ── */
+.item-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #f0f2f5; }
+.item-row:last-child { border-bottom: none; }
+.item-info { flex: 1; min-width: 0; }
+.item-sku   { font-family: monospace; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-sub   { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-qtys  { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.qty-btn    { width: 36px; height: 36px; border: 2px solid #e0e4ef; background: #fafbff; color: #1a1a2e; font-size: 18px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+.qty-btn:active { background: #f59e0b; border-color: #f59e0b; color: white; }
+.qty-num    { font-size: 22px; font-weight: 900; min-width: 36px; text-align: center; }
+
+.badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; vertical-align: middle; margin-left: 4px; }
+.b-new   { background: #d1fae5; color: #065f46; }
+.b-over  { background: #fee2e2; color: #dc2626; }
+.b-under { background: #dbeafe; color: #1d4ed8; }
+.b-ok    { background: #f0f2f5; color: #aaa; }
+.b-unk   { background: #ede9fe; color: #7c3aed; }
+
+.action-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+
+/* ── Diff / result rows ── */
+.diff-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f2f5; }
+.diff-row:last-child { border-bottom: none; }
+.diff-info  { flex: 1; min-width: 0; }
+.diff-sku   { font-family: monospace; font-size: 14px; font-weight: 700; }
+.diff-sub   { font-size: 12px; color: #888; margin-top: 2px; }
+.diff-delta { font-size: 20px; font-weight: 900; min-width: 48px; text-align: right; flex-shrink: 0; }
+.d-plus  { color: #00c896; }
+.d-minus { color: #dc2626; }
+
+/* ── Modal ── */
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: flex-start; justify-content: center; padding: 16px; overflow-y: auto; }
+.modal.open { display: flex; }
+.modal-box { background: white; border-radius: 14px; padding: 20px; width: 100%; max-width: 500px; margin: 0 auto; }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.modal-sub   { font-size: 13px; color: #888; margin-bottom: 16px; }
+.modal-btns  { display: flex; gap: 10px; margin-top: 16px; }
+.modal-btns .btn-back  { flex: 1; padding: 13px; background: #fee2e2; color: #dc2626; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.modal-btns .btn-go    { flex: 2; padding: 13px; font-size: 16px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; font-family: inherit; }
+
+/* ── Result chips ── */
+.result-ok   { background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.result-fail { background: #fee2e2; color: #dc2626; padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+
+/* ── History ── */
+.hist-date { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; padding: 14px 0 6px; border-top: 2px solid #f0f2f5; }
+.hist-date:first-child { border-top: none; }
+
+.empty-state { text-align: center; padding: 36px; color: #bbb; }
+.empty-state .icon { font-size: 36px; margin-bottom: 8px; }
+.empty-state p { font-size: 14px; }
+
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1a1a2e; color: white; padding: 11px 22px; border-radius: 8px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: transform 0.3s; z-index: 999; }
+#toast.show  { transform: translateX(-50%) translateY(0); }
+#toast.ok    { background: #00c896; }
+#toast.err   { background: #dc2626; }
+#toast.warn  { background: #f59e0b; }
+.spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ccc; border-top-color: #7c3aed; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">🔢</div>
+    <div class="login-title">Stock Count</div>
+    <div class="login-sub">Sign in with your warehouse account</div>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="loginUser" autocomplete="username" autocorrect="off" autocapitalize="none" placeholder="Username">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPass" autocomplete="current-password" placeholder="Password">
+    </div>
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ── Main app ── -->
+<div id="mainApp">
+  <header>
+    <h1>🔢 Stock Count</h1>
+    <div class="header-right">
+      <button id="historyBtn" onclick="showHistory()">📋 History</button>
+      <div id="userBadge">—</div>
+      <button id="logoutBtn" onclick="doLogout()">⏻</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Step 1: Location + Bin Rack -->
+    <div class="card">
+      <div class="card-title">1 — Warehouse Location</div>
+      <select id="locationSelect"></select>
+    </div>
+
+    <div class="card">
+      <div class="card-title">2 — Bin Rack to Count</div>
+      <div class="field">
+        <label>📦 Scan bin rack label</label>
+        <input type="text" id="binRackInput" placeholder="Scan or type bin rack…" autocomplete="off" autocapitalize="characters">
+      </div>
+    </div>
+
+    <!-- Step 2: Scan items -->
+    <div class="card">
+      <div class="card-title">3 — Scan Items</div>
+      <div class="field">
+        <label>SKU / Barcode</label>
+        <input type="text" id="skuInput" placeholder="Scan item barcode…" autocomplete="off" inputmode="none">
+      </div>
+      <button class="btn-dark" onclick="handleScan()" style="margin-top:8px;">＋ Add Item</button>
+    </div>
+
+    <!-- Count list (shown after first scan) -->
+    <div class="card" id="listCard" style="display:none;">
+      <div id="rackHero"></div>
+      <div class="card-title" style="margin-top:4px;">Items Counted</div>
+      <div id="itemList"></div>
+      <div class="action-row">
+        <button class="btn-red" onclick="clearAll()">🗑 Clear</button>
+        <button class="btn-amber" onclick="showDiff()" style="padding:13px 20px;">✓ Finish Count</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Confirm modal ── -->
+<div class="modal" id="diffModal">
+  <div class="modal-box">
+    <div class="modal-title">📋 Review Changes</div>
+    <div class="modal-sub">These will be applied to Linnworks</div>
+    <div id="diffBody"></div>
+    <div class="modal-btns">
+      <button class="btn-back" onclick="closeDiff()">← Back</button>
+      <button class="btn-go btn-green" id="commitBtn" onclick="doCommit()">✅ Commit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Results modal ── -->
+<div class="modal" id="resultsModal">
+  <div class="modal-box">
+    <div class="modal-title" id="resultsTitle">Done</div>
+    <div id="resultsBody" style="margin-top:12px;"></div>
+    <button class="btn-dark" onclick="closeResults()" style="margin-top:16px;">New Count</button>
+  </div>
+</div>
+
+<!-- ── History modal ── -->
+<div class="modal" id="historyModal">
+  <div class="modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="modal-title">📋 History</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="exportCSV()" style="background:#f59e0b;color:white;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">⬇ Export</button>
+        <button onclick="closeHistory()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+      </div>
+    </div>
+    <div id="historyBody" style="max-height:65vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+let authToken   = sessionStorage.getItem('sc_tok') || null;
+let currentUser = sessionStorage.getItem('sc_usr') || null;
+
+document.getElementById('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPass').focus(); });
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('loginError');
+  if (!u || !p) { err.textContent = 'Enter username and password'; err.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent = 'Signing in…'; err.classList.remove('show');
+  try {
+    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Login failed'; err.classList.add('show'); btn.disabled = false; btn.textContent = 'Sign In'; return; }
+    authToken = d.token; currentUser = d.displayName;
+    sessionStorage.setItem('sc_tok', authToken); sessionStorage.setItem('sc_usr', currentUser);
+    showApp();
+  } catch (e) { err.textContent = 'Cannot reach server'; err.classList.add('show'); btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+async function doLogout() {
+  try { await fetch('/api/logout', { method: 'POST', headers: { 'x-auth-token': authToken } }); } catch (_) {}
+  authToken = null; currentUser = null;
+  sessionStorage.removeItem('sc_tok'); sessionStorage.removeItem('sc_usr');
+  document.getElementById('mainApp').classList.remove('visible');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginUser').focus();
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (authToken && currentUser) {
+    try { const r = await fetch('/api/health', { headers: { 'x-auth-token': authToken } }); if (r.ok) { showApp(); return; } } catch (_) {}
+    sessionStorage.clear(); authToken = null; currentUser = null;
+  }
+  document.getElementById('loginUser').focus();
+});
+
+function showApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.add('visible');
+  document.getElementById('userBadge').textContent = currentUser;
+  loadLocations();
+  setTimeout(() => document.getElementById('binRackInput').focus(), 300);
+}
+
+// ── Locations ─────────────────────────────────────────────────────────────────
+async function loadLocations() {
+  const sel = document.getElementById('locationSelect');
+  try {
+    const locs = await api('/api/locations');
+    sel.innerHTML = locs.map(l => `<option value="${l.StockLocationId}">${l.LocationName}</option>`).join('');
+  } catch (e) { sel.innerHTML = '<option value="">Failed to load locations</option>'; }
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+// sysItems: { stockItemId_lower: { stockItemId, sku, title, systemQty, batchInventoryId, binRackId } }
+// counted:  { SKU_UPPER: { sku, title, stockItemId, countedQty, batchInventoryId } }
+let sysItems  = {};
+let counted   = {};
+let curBinRack = '';
+
+// ── Bin rack scan ─────────────────────────────────────────────────────────────
+document.getElementById('binRackInput').addEventListener('keydown', async e => {
+  if (e.key !== 'Enter' || !e.target.value.trim()) return;
+  const rack = e.target.value.trim().toUpperCase();
+  e.target.value = rack;
+  e.target.classList.add('filled');
+  curBinRack = rack;
+  sysItems = {};
+  toast('Loading bin rack…');
+  try {
+    const locationId = document.getElementById('locationSelect').value;
+    const res = await api(`/api/binrack?locationId=${encodeURIComponent(locationId)}&binRack=${encodeURIComponent(rack)}`);
+    for (const item of (res.items || [])) {
+      sysItems[String(item.stockItemId).toLowerCase()] = item;
+    }
+    const n = res.items.length;
+    toast(n ? `Loaded: ${n} SKU${n !== 1 ? 's' : ''} in system` : 'Bin rack empty in system', 'ok');
+  } catch (_) {
+    toast('Could not load bin rack — scanning without system data', 'warn');
+  }
+  updateHero();
+  renderList();
+});
+
+['binRackInput','skuInput'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('focus', () => el.classList.add('active'));
+  el.addEventListener('blur',  () => el.classList.remove('active'));
+});
+
+// ── Item scan ─────────────────────────────────────────────────────────────────
+document.getElementById('skuInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleScan(); });
+
+async function handleScan() {
+  const raw = document.getElementById('skuInput').value.trim();
+  if (!raw) { toast('Scan a barcode first', 'err'); return; }
+  const key = raw.toUpperCase();
+  document.getElementById('skuInput').value = '';
+
+  // Already counted → increment
+  if (counted[key]) {
+    counted[key].countedQty++;
+    beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
+    toast(`${key} → ${counted[key].countedQty}`, 'ok');
+    renderList(); updateHero(); return;
+  }
+
+  // In system items?
+  const sysEntry = Object.values(sysItems).find(i => (i.sku||'').toUpperCase() === key);
+  if (sysEntry) {
+    counted[key] = { sku: sysEntry.sku, title: sysEntry.title, stockItemId: sysEntry.stockItemId, countedQty: 1, batchInventoryId: sysEntry.batchInventoryId };
+    beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
+    toast(`Added: ${sysEntry.title || key}`, 'ok');
+    renderList(); updateHero(); return;
+  }
+
+  // Look up in Linnworks
+  toast(`Looking up ${key}…`);
+  try {
+    const item = await api(`/api/search?sku=${encodeURIComponent(key)}`);
+    counted[key] = { sku: item.sku, title: item.title, stockItemId: item.stockItemId, countedQty: 1, batchInventoryId: null };
+    beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
+    toast(`Added: ${item.title}`, 'ok');
+  } catch (_) {
+    beep(300, 0.15, 'square');
+    counted[key] = { sku: key, title: '(not in Linnworks)', stockItemId: null, countedQty: 1, batchInventoryId: null, unknown: true };
+    toast(`⚠ Not found: ${key}`, 'warn');
+  }
+  renderList(); updateHero();
+}
+
+function adjustQty(key, delta) {
+  if (!counted[key]) return;
+  const next = counted[key].countedQty + delta;
+  if (next <= 0) {
+    if (!confirm(`Remove ${key} from count?`)) return;
+    delete counted[key];
+  } else {
+    counted[key].countedQty = next;
+  }
+  renderList(); updateHero();
+}
+
+function getSysQty(key) {
+  const e = Object.values(sysItems).find(i => (i.sku||'').toUpperCase() === key.toUpperCase());
+  return e ? e.systemQty : 0;
+}
+
+// ── Render list ───────────────────────────────────────────────────────────────
+function renderList() {
+  const entries = Object.entries(counted);
+  document.getElementById('listCard').style.display = (entries.length || curBinRack) ? 'block' : 'none';
+  if (!entries.length) {
+    document.getElementById('itemList').innerHTML = '<div class="empty-state"><div class="icon">📷</div><p>No items scanned yet</p></div>';
+    return;
+  }
+  document.getElementById('itemList').innerHTML = entries.map(([key, item]) => {
+    const sys = getSysQty(key);
+    let badge = '';
+    if (item.unknown)                badge = '<span class="badge b-unk">? Not in LW</span>';
+    else if (sys === 0)              badge = '<span class="badge b-new">NEW</span>';
+    else if (item.countedQty > sys)  badge = `<span class="badge b-under">+${item.countedQty - sys}</span>`;
+    else if (item.countedQty < sys)  badge = `<span class="badge b-over">−${sys - item.countedQty}</span>`;
+    else                             badge = '<span class="badge b-ok">✓ Match</span>';
+    const k = key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `
+      <div class="item-row">
+        <div class="item-info">
+          <div class="item-sku">${esc(item.sku)} ${badge}</div>
+          <div class="item-sub">${esc(item.title||'—')}</div>
+        </div>
+        <div class="item-qtys">
+          <button class="qty-btn" onclick="adjustQty('${k}',-1)">−</button>
+          <div class="qty-num">${item.countedQty}</div>
+          <button class="qty-btn" onclick="adjustQty('${k}',1)">+</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function updateHero() {
+  const entries = Object.values(counted);
+  const skus    = entries.length;
+  const units   = entries.reduce((s, i) => s + i.countedQty, 0);
+  const changes = calcDiff().length;
+  document.getElementById('rackHero').innerHTML = curBinRack ? `
+    <div class="rack-hero" style="margin-bottom:12px;">
+      <div>
+        <div class="label">Bin Rack</div>
+        <div class="name">${esc(curBinRack)}</div>
+        <div class="loc">${esc(document.getElementById('locationSelect').options[document.getElementById('locationSelect').selectedIndex]?.text||'')}</div>
+      </div>
+      <div class="rack-stats">
+        <div><div class="rstat-val">${skus}</div><div class="rstat-lbl">SKUs</div></div>
+        <div><div class="rstat-val">${units}</div><div class="rstat-lbl">Units</div></div>
+        <div><div class="rstat-val" style="color:${changes>0?'#f59e0b':'#00c896'}">${changes}</div><div class="rstat-lbl">Changes</div></div>
+      </div>
+    </div>` : '';
+}
+
+// ── Diff ──────────────────────────────────────────────────────────────────────
+function calcDiff() {
+  const changes = []; const seen = new Set();
+  for (const [key, item] of Object.entries(counted)) {
+    if (item.unknown || !item.stockItemId) continue;
+    const delta = item.countedQty - getSysQty(key);
+    if (delta !== 0) changes.push({ sku: item.sku, title: item.title, stockItemId: item.stockItemId, delta, batchInventoryId: item.batchInventoryId || null, from: getSysQty(key), to: item.countedQty });
+    seen.add(key);
+  }
+  // Items in system but not scanned → remove
+  for (const sys of Object.values(sysItems)) {
+    if (!seen.has((sys.sku||'').toUpperCase()) && sys.systemQty > 0) {
+      changes.push({ sku: sys.sku, title: sys.title, stockItemId: sys.stockItemId, delta: -sys.systemQty, batchInventoryId: sys.batchInventoryId, from: sys.systemQty, to: 0 });
+    }
+  }
+  return changes;
+}
+
+function showDiff() {
+  const changes = calcDiff();
+  const btn = document.getElementById('commitBtn');
+  if (!changes.length) {
+    document.getElementById('diffBody').innerHTML = '<div style="text-align:center;padding:30px;color:#00c896;"><div style="font-size:40px;margin-bottom:12px;">✅</div><div style="font-weight:700;font-size:16px;">Everything matches!</div></div>';
+    btn.textContent = 'Done'; btn.onclick = () => { closeDiff(); clearAll(); };
+  } else {
+    document.getElementById('diffBody').innerHTML = changes.map(c => {
+      const sign = c.delta > 0 ? '+' : '';
+      const cls  = c.delta > 0 ? 'd-plus' : 'd-minus';
+      return `<div class="diff-row">
+        <div class="diff-info">
+          <div class="diff-sku">${esc(c.sku)}</div>
+          <div class="diff-sub">${esc(c.title||'—')} · ${c.from} → ${c.to}</div>
+        </div>
+        <div class="diff-delta ${cls}">${sign}${c.delta}</div>
+      </div>`;
+    }).join('');
+    btn.textContent = `✅ Commit ${changes.length} change${changes.length!==1?'s':''}`;
+    btn.onclick = doCommit;
+  }
+  document.getElementById('diffModal').classList.add('open');
+}
+
+function closeDiff() { document.getElementById('diffModal').classList.remove('open'); }
+
+// ── Commit ────────────────────────────────────────────────────────────────────
+async function doCommit() {
+  const changes = calcDiff();
+  if (!changes.length) { closeDiff(); clearAll(); return; }
+  const btn = document.getElementById('commitBtn');
+  btn.disabled = true; btn.textContent = 'Committing…';
+
+  try {
+    const res = await api('/api/count-commit', 'POST', {
+      changes: changes.map(c => ({ sku: c.sku, title: c.title, stockItemId: c.stockItemId, delta: c.delta, batchInventoryId: c.batchInventoryId })),
+      binRack: curBinRack,
+      locationId: document.getElementById('locationSelect').value
+    });
+
+    closeDiff();
+    btn.disabled = false; btn.textContent = `✅ Commit`;
+    btn.onclick = doCommit;
+
+    // Show results
+    const ok   = res.results.filter(r => r.success);
+    const fail = res.results.filter(r => !r.success);
+
+    document.getElementById('resultsTitle').textContent = fail.length === 0 ? `✅ ${ok.length} change${ok.length!==1?'s':''} applied!` : `⚠️ ${ok.length} ok, ${fail.length} failed`;
+    document.getElementById('resultsBody').innerHTML = res.results.map(r => `
+      <div class="diff-row">
+        <div class="diff-info">
+          <div class="diff-sku">${esc(r.sku)}</div>
+          ${r.success ? `<div class="diff-sub">${esc(r.action)}</div>` : `<div class="diff-sub" style="color:#dc2626;">${esc(r.error)}</div>`}
+        </div>
+        <span class="${r.success ? 'result-ok' : 'result-fail'}">${r.success ? '✓' : '✗'}</span>
+      </div>`).join('');
+
+    document.getElementById('resultsModal').classList.add('open');
+    if (fail.length === 0) { beep(800,0.1); setTimeout(()=>beep(1000,0.1),140); setTimeout(()=>beep(1400,0.2),280); }
+
+  } catch (e) {
+    closeDiff();
+    btn.disabled = false; btn.textContent = '✅ Commit'; btn.onclick = doCommit;
+    toast('Commit failed: ' + e.message, 'err');
+  }
+}
+
+function closeResults() {
+  document.getElementById('resultsModal').classList.remove('open');
+  clearAll();
+}
+
+function clearAll() {
+  Object.keys(counted).forEach(k => delete counted[k]);
+  sysItems = {}; curBinRack = '';
+  const bin = document.getElementById('binRackInput');
+  bin.value = ''; bin.classList.remove('filled');
+  document.getElementById('skuInput').value = '';
+  renderList(); updateHero();
+  document.getElementById('listCard').style.display = 'none';
+  setTimeout(() => bin.focus(), 100);
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function showHistory() {
+  document.getElementById('historyModal').classList.add('open');
+  const body = document.getElementById('historyBody');
+  body.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
+  try {
+    const logs = await api('/api/logs');
+    if (!logs.length) { body.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No history yet</p></div>'; return; }
+    let last = '';
+    body.innerHTML = logs.map(e => {
+      const dt   = new Date(e.timestamp);
+      const date = dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+      const time = dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+      const hdr  = date !== last ? `<div class="hist-date">${date}</div>` : '';
+      last = date;
+      const sign = e.delta > 0 ? '+' : '';
+      const col  = e.delta > 0 ? '#00c896' : '#dc2626';
+      return `${hdr}<div class="diff-row">
+        <div class="diff-info">
+          <div class="diff-sku">${esc(e.sku)}</div>
+          <div class="diff-sub">${esc(e.title||'—')} · ${esc(e.binRack||'')} · ${esc(e.user)} · ${time}</div>
+        </div>
+        <div class="diff-delta" style="color:${col};">${sign}${e.delta}</div>
+      </div>`;
+    }).join('');
+  } catch (_) { body.innerHTML = '<div class="empty-state"><p style="color:#dc2626;">Failed to load</p></div>'; }
+}
+
+function closeHistory() { document.getElementById('historyModal').classList.remove('open'); }
+
+async function exportCSV() {
+  try {
+    const logs = await api('/api/logs');
+    if (!logs.length) { toast('No history to export', 'err'); return; }
+    const rows = [['Date','Time','User','SKU','Title','Change','Bin Rack']];
+    for (const e of logs) {
+      const dt = new Date(e.timestamp);
+      rows.push([dt.toLocaleDateString('en-GB'), dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}), e.user||'', e.sku||'', e.title||'', e.delta, e.binRack||'']);
+    }
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download = `stock-count-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    toast('Downloading…', 'ok');
+  } catch (_) { toast('Export failed', 'err'); }
+}
+
+// ── API helper ────────────────────────────────────────────────────────────────
+async function api(url, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json', 'x-auth-token': authToken || '' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  if (r.status === 401) { toast('Session expired', 'err'); setTimeout(doLogout, 1500); throw new Error('Not authenticated'); }
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let toastTmr;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `show ${type}`;
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => { el.className = ''; }, 2800);
+}
+
+let audioCtx;
+function beep(freq, dur, type='sine', vol=0.35) {
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  osc.start(); osc.stop(audioCtx.currentTime + dur);
+}
+
+// Orientation fix for Zebra devices mounted upside-down
+function checkOrientation() {
+  let up = false;
+  try {
+    const angle = (screen.orientation&&screen.orientation.angle!=null) ? screen.orientation.angle : (window.orientation||0);
+    up = angle === 180 || angle === -180;
+    if (screen.orientation&&screen.orientation.type) up = screen.orientation.type.includes('secondary');
+  } catch(_) {}
+  document.body.style.transform = up ? 'rotate(180deg)' : '';
+}
+checkOrientation();
+window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 50));
+setInterval(checkOrientation, 500);
+</script>
+</body>
+</html>
