@@ -229,19 +229,26 @@ app.get('/api/binrack', requireAuth, async (req, res) => {
 
     const items = [];
     for (const batch of (skuRes.Skus || [])) {
-      for (const inv of (batch.Inventory || [])) {
-        if (!inv.IsDeleted && inv.BinRackId === found.BinRackId) {
+      // Linnworks sometimes returns Inventory, sometimes Item — handle both
+      const invList = batch.Inventory || batch.Item || [];
+      for (const inv of invList) {
+        // Match by BinRackId OR by BinRack name (case-insensitive) — same pattern as transfer app
+        const idMatch   = inv.BinRackId && found.BinRackId &&
+                          String(inv.BinRackId).toLowerCase() === String(found.BinRackId).toLowerCase();
+        const nameMatch = inv.BinRack && String(inv.BinRack).toUpperCase() === binRack.toUpperCase();
+        if (!inv.IsDeleted && (idMatch || nameMatch)) {
           items.push({
-            stockItemId:    batch.StockItemId,
-            sku:            batch.SKU,
-            title:          batch.ItemTitle || '',
-            systemQty:      inv.Quantity,
+            stockItemId:      batch.StockItemId,
+            sku:              batch.SKU,
+            title:            batch.ItemTitle || '',
+            systemQty:        inv.Quantity,
             batchInventoryId: inv.BatchInventoryId,
-            binRackId:      found.BinRackId
+            binRackId:        found.BinRackId
           });
         }
       }
     }
+    console.log(`[binrack] ${binRack}: found ${items.length} items`);
     res.json({ binRackId: found.BinRackId, items });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
