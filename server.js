@@ -187,8 +187,17 @@ app.get('/api/locations', requireAuth, async (req, res) => {
       } catch (_) {}
     }
     const list = Array.isArray(data) ? data : (data && (data.Results || data.StockLocations)) || [];
-    res.json(list.map(l => ({ StockLocationId: l.StockLocationId || l.LocationId || '', LocationName: l.LocationName || l.Name || '' })).filter(l => l.LocationName));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const mapped = list.map(l => ({ StockLocationId: l.StockLocationId || l.LocationId || '', LocationName: l.LocationName || l.Name || '' })).filter(l => l.LocationName);
+    if (mapped.length) return res.json(mapped);
+    // Fallback to known locations if API returns nothing
+    throw new Error('Empty response');
+  } catch (e) {
+    // Hardcoded fallback — same as transfer app
+    res.json([
+      { StockLocationId: '28f60e93-7de6-4983-9d2d-6631d9d2a8c1', LocationName: 'WMS New' },
+      { StockLocationId: '', LocationName: 'Default' }
+    ]);
+  }
 });
 
 // ── GET /api/binrack?locationId=&binRack= ─────────────────────────────────────
