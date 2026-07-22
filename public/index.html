@@ -361,37 +361,56 @@ document.getElementById('skuInput').addEventListener('keydown', e => { if (e.key
 async function handleScan() {
   const raw = document.getElementById('skuInput').value.trim();
   if (!raw) { toast('Scan a barcode first', 'err'); return; }
-  const key = raw.toUpperCase();
   document.getElementById('skuInput').value = '';
+  const scan = raw.toUpperCase();
 
-  // Already counted → increment
-  if (counted[key]) {
-    counted[key].countedQty++;
+  // ── Already counted by this exact scan value → increment ──
+  if (counted[scan]) {
+    counted[scan].countedQty++;
     beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
-    toast(`${key} → ${counted[key].countedQty}`, 'ok');
+    toast(`${counted[scan].sku} → ${counted[scan].countedQty}`, 'ok');
     renderList(); updateHero(); return;
   }
 
-  // In system items?
-  const sysEntry = Object.values(sysItems).find(i => (i.sku||'').toUpperCase() === key);
+  // ── Match against system items by SKU ──
+  const sysEntry = Object.values(sysItems).find(i => (i.sku||'').toUpperCase() === scan);
   if (sysEntry) {
-    counted[key] = { sku: sysEntry.sku, title: sysEntry.title, stockItemId: sysEntry.stockItemId, countedQty: 1, batchInventoryId: sysEntry.batchInventoryId };
+    const skuKey = sysEntry.sku.toUpperCase(); // always key by SKU
+    if (counted[skuKey]) {
+      counted[skuKey].countedQty++;
+    } else {
+      counted[skuKey] = { sku: sysEntry.sku, title: sysEntry.title, stockItemId: sysEntry.stockItemId, countedQty: 1, batchInventoryId: sysEntry.batchInventoryId };
+    }
     beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
-    toast(`Added: ${sysEntry.title || key}`, 'ok');
+    toast(`${sysEntry.sku} → ${counted[skuKey].countedQty}`, 'ok');
     renderList(); updateHero(); return;
   }
 
-  // Look up in Linnworks
-  toast(`Looking up ${key}…`);
+  // ── Look up in Linnworks (barcode may differ from SKU) ──
+  toast(`Looking up…`);
   try {
-    const item = await api(`/api/search?sku=${encodeURIComponent(key)}`);
-    counted[key] = { sku: item.sku, title: item.title, stockItemId: item.stockItemId, countedQty: 1, batchInventoryId: null };
+    const item = await api(`/api/search?sku=${encodeURIComponent(scan)}`);
+    const skuKey = (item.sku || scan).toUpperCase(); // key by resolved SKU, not barcode
+
+    // Check if the resolved item exists in sysItems (to get batchInventoryId)
+    const sysMatch = Object.values(sysItems).find(i =>
+      String(i.stockItemId).toLowerCase() === String(item.stockItemId).toLowerCase()
+    );
+
+    if (counted[skuKey]) {
+      counted[skuKey].countedQty++;
+    } else {
+      counted[skuKey] = {
+        sku: item.sku, title: item.title, stockItemId: item.stockItemId,
+        countedQty: 1, batchInventoryId: sysMatch ? sysMatch.batchInventoryId : null
+      };
+    }
     beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
-    toast(`Added: ${item.title}`, 'ok');
+    toast(`${item.sku} → ${counted[skuKey].countedQty}`, 'ok');
   } catch (_) {
     beep(300, 0.15, 'square');
-    counted[key] = { sku: key, title: '(not in Linnworks)', stockItemId: null, countedQty: 1, batchInventoryId: null, unknown: true };
-    toast(`⚠ Not found: ${key}`, 'warn');
+    counted[scan] = { sku: scan, title: '(not in Linnworks)', stockItemId: null, countedQty: 1, batchInventoryId: null, unknown: true };
+    toast(`⚠ Not found: ${scan}`, 'warn');
   }
   renderList(); updateHero();
 }
