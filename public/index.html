@@ -333,6 +333,28 @@ document.getElementById('binRackInput').addEventListener('keydown', async e => {
   el.addEventListener('blur',  () => el.classList.remove('active'));
 });
 
+// Double-tap bin rack input to clear it (same as transfer app)
+let lastBinTap = 0;
+function clearBinRack(e) {
+  const now = Date.now();
+  if (now - lastBinTap < 400) {
+    e.preventDefault();
+    const el = document.getElementById('binRackInput');
+    el.value = ''; el.classList.remove('filled', 'active');
+    curBinRack = ''; sysItems = {};
+    Object.keys(counted).forEach(k => delete counted[k]);
+    renderList(); updateHero();
+    document.getElementById('listCard').style.display = 'none';
+    toast('Bin rack cleared — scan new bin rack', '');
+    el.focus();
+    lastBinTap = 0;
+  } else {
+    lastBinTap = now;
+  }
+}
+document.getElementById('binRackInput').addEventListener('touchend', clearBinRack);
+document.getElementById('binRackInput').addEventListener('click',    clearBinRack);
+
 // ── Item scan ─────────────────────────────────────────────────────────────────
 document.getElementById('skuInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleScan(); });
 
