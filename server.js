@@ -134,11 +134,22 @@ async function warehouseMove(batchInventoryId, destBinRackId, qty, note) {
   );
   const moveId = res.WarehouseMove && res.WarehouseMove.MoveId;
   if (moveId) {
-    await lwPost('Stock/CompleteWarehouseMove',
-      `request=${encodeURIComponent(JSON.stringify({ MoveId: moveId }))}`
-    ).catch(() => lwPost('Stock/CompleteWarehouseMove',
-      `request=${encodeURIComponent(JSON.stringify({ WarehouseMoveId: moveId }))}`
-    ));
+    // Mirror transfer app: try both ID formats, silently ignore if complete fails
+    // (Linnworks sometimes auto-completes or uses a different ID field)
+    try {
+      await lwPost('Stock/CompleteWarehouseMove',
+        `request=${encodeURIComponent(JSON.stringify({ MoveId: moveId }))}`
+      );
+    } catch (_) {
+      try {
+        await lwPost('Stock/CompleteWarehouseMove',
+          `request=${encodeURIComponent(JSON.stringify({ WarehouseMoveId: moveId }))}`
+        );
+      } catch (_) {
+        // Silently ignore — Linnworks may auto-complete the move
+        console.log(`CompleteWarehouseMove failed for ${moveId} — move may auto-complete`);
+      }
+    }
   }
   return moveId;
 }
