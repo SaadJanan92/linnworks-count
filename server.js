@@ -34,7 +34,7 @@ async function redis(...args) {
 async function appendLog(entry) {
   if (!REDIS_URL) return;
   await redis('lpush', 'sc_logs', JSON.stringify(entry));
-  await redis('ltrim', 'sc_logs', '0', '49999');
+  await redis('ltrim', 'sc_logs', '0', '499999');
 }
 
 async function readLog(limit = 10000) {
@@ -273,7 +273,7 @@ app.get('/api/search', requireAuth, async (req, res) => {
 // ── POST /api/count-commit ────────────────────────────────────────────────────
 // changes: [{ sku, title, stockItemId, delta, batchInventoryId }]
 // delta < 0 → reduction (move excess to ADJ)
-// delta > 0 → addition (move from ADJ to bin rack, or fallback)
+// delta > 0 → addition (adjust stock level up in the bin rack directly)
 app.post('/api/count-commit', requireAuth, async (req, res) => {
   const { changes, binRack, locationId } = req.body;
   if (!changes || !binRack || !locationId) return res.status(400).json({ error: 'changes, binRack and locationId required' });
@@ -300,37 +300,22 @@ app.post('/api/count-commit', requireAuth, async (req, res) => {
         results.push({ sku, success: true, action: `−${Math.abs(delta)} moved to ADJ` });
 
       // ── ADDITION ─────────────────────────────────────────────────────────────
+      // Add the excess qty directly to the bin rack via stock level adjustment.
+      // No source rack needed — this just increases the level for this bin rack.
       } else if (delta > 0) {
-        let done = false;
+        if (!countedId) throw new Error(`Bin rack "${binRack}" not found in Linnworks`);
 
-        // Try: move from ADJ to this bin rack
-        if (adjId && countedId) {
-          try {
-            const adjBatchId = await findBatchId(adjId, stockItemId);
-            if (adjBatchId) {
-              await warehouseMove(adjBatchId, countedId, delta, note);
-              done = true;
-              results.push({ sku, success: true, action: `+${delta} moved from ADJ` });
-            }
-          } catch (e) { console.log(`Move from ADJ failed for ${sku}:`, e.message); }
-        }
-
-        // Fallback: try stock level adjustment API
-        if (!done) {
-          const s = await getSession();
-          const r = await fetch(`${s.server}/api/Stock/AdjustStockLevel`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: s.token },
-            body: `request=${encodeURIComponent(JSON.stringify({ StockItemId: stockItemId, ChangeInQty: delta, LocationId: locationId, BinRack: binRack, Notes: note }))}`
-          });
-          if (r.ok) {
-            done = true;
-            results.push({ sku, success: true, action: `+${delta} via stock adjustment` });
-          } else {
-            const txt = await r.text();
-            results.push({ sku, success: false, error: `Item not in ADJ and API failed. Put ${delta} unit(s) of ${sku} into ADJ bin rack, then try again. (${txt})` });
-          }
-        }
+        await lwPost('Inventory/AdjustStockLevel',
+          `adjustStockLevelInfo=${encodeURIComponent(JSON.stringify({
+            PKStockItemId:            stockItemId,
+            LocationId:               locationId,
+            QtyAdjust:                delta,
+            BinRack:                  binRack,
+            ChangeSource:             'STOCK_COUNT',
+            ChangeSourceDescription:  note
+          }))}`
+        );
+        results.push({ sku, success: true, action: `+${delta} added to ${binRack}` });
       }
 
       // Log success
