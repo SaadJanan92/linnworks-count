@@ -300,22 +300,19 @@ app.post('/api/count-commit', requireAuth, async (req, res) => {
         results.push({ sku, success: true, action: `−${Math.abs(delta)} moved to ADJ` });
 
       // ── ADDITION ─────────────────────────────────────────────────────────────
-      // Add the excess qty directly to the bin rack via stock level adjustment.
-      // No source rack needed — this just increases the level for this bin rack.
+      // Source is always ADJ only — we never pull from other live bin racks.
       } else if (delta > 0) {
         if (!countedId) throw new Error(`Bin rack "${binRack}" not found in Linnworks`);
+        if (!adjId)     throw new Error(`ADJ bin rack not found — please create it in Linnworks`);
 
-        await lwPost('Inventory/AdjustStockLevel',
-          `adjustStockLevelInfo=${encodeURIComponent(JSON.stringify({
-            PKStockItemId:            stockItemId,
-            LocationId:               locationId,
-            QtyAdjust:                delta,
-            BinRack:                  binRack,
-            ChangeSource:             'STOCK_COUNT',
-            ChangeSourceDescription:  note
-          }))}`
-        );
-        results.push({ sku, success: true, action: `+${delta} added to ${binRack}` });
+        // Find the item's batch in ADJ
+        const adjBatchId = await findBatchId(adjId, stockItemId);
+        if (!adjBatchId) {
+          throw new Error(`${sku}: not in ADJ bin rack. Add ${delta} unit(s) to ADJ in Linnworks first, then re-count.`);
+        }
+
+        await warehouseMove(adjBatchId, countedId, delta, note);
+        results.push({ sku, success: true, action: `+${delta} moved from ADJ → ${binRack}` });
       }
 
       // Log success
