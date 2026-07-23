@@ -397,12 +397,14 @@ async function handleScan() {
       String(i.stockItemId).toLowerCase() === String(item.stockItemId).toLowerCase()
     );
 
+    const batchInventoryId = sysMatch ? sysMatch.batchInventoryId : null;
+
     if (counted[skuKey]) {
       counted[skuKey].countedQty++;
     } else {
       counted[skuKey] = {
         sku: item.sku, title: item.title, stockItemId: item.stockItemId,
-        countedQty: 1, batchInventoryId: sysMatch ? sysMatch.batchInventoryId : null
+        countedQty: 1, batchInventoryId
       };
     }
     beep(1200, 0.08); setTimeout(() => beep(1800, 0.12), 110);
