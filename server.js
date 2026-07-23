@@ -300,19 +300,73 @@ app.post('/api/count-commit', requireAuth, async (req, res) => {
         results.push({ sku, success: true, action: `−${Math.abs(delta)} moved to ADJ` });
 
       // ── ADDITION ─────────────────────────────────────────────────────────────
-      // Source is always ADJ only — we never pull from other live bin racks.
+      // Item exists in Linnworks but has 0 qty in any bin rack.
+      // Try several approaches to write stock directly into the counted bin rack.
       } else if (delta > 0) {
         if (!countedId) throw new Error(`Bin rack "${binRack}" not found in Linnworks`);
-        if (!adjId)     throw new Error(`ADJ bin rack not found — please create it in Linnworks`);
+        let done = false;
 
-        // Find the item's batch in ADJ
-        const adjBatchId = await findBatchId(adjId, stockItemId);
-        if (!adjBatchId) {
-          throw new Error(`${sku}: not in ADJ bin rack. Add ${delta} unit(s) to ADJ in Linnworks first, then re-count.`);
+        // Attempt 1 — standard inventory adjustment (works on non-WMS or newer accounts)
+        if (!done) {
+          for (const [ep, paramName] of [
+            ['Inventory/AdjustStockLevel', 'adjustStockLevelInfo'],
+            ['Stock/AdjustStockLevel',     'request'],
+          ]) {
+            try {
+              await lwPost(ep, `${paramName}=${encodeURIComponent(JSON.stringify({
+                PKStockItemId: stockItemId, StockItemId: stockItemId,
+                LocationId: locationId, QtyAdjust: delta, Quantity: delta,
+                BinRack: binRack, BinRackId: countedId,
+                ChangeSource: 'STOCK_COUNT', ChangeSourceDescription: note, Note: note
+              }))}`);
+              done = true;
+              results.push({ sku, success: true, action: `+${delta} added to ${binRack}` });
+              break;
+            } catch (e) { console.log(`[add] ${ep} failed: ${e.message}`); }
+          }
         }
 
-        await warehouseMove(adjBatchId, countedId, delta, note);
-        results.push({ sku, success: true, action: `+${delta} moved from ADJ → ${binRack}` });
+        // Attempt 2 — WMS "write-on": CreateWarehouseMove with zero-GUID source
+        // This tells Linnworks to create fresh stock in the destination bin rack.
+        if (!done) {
+          for (const txType of ['Adjustment', 'WriteOn', 'StockCount', 'InTransit']) {
+            try {
+              const res = await lwPost('Stock/CreateWarehouseMove',
+                `request=${encodeURIComponent(JSON.stringify({
+                  BatchInventoryId:     '00000000-0000-0000-0000-000000000000',
+                  StockItemId:          stockItemId,
+                  BinrackIdDestination: countedId,
+                  Quantity:             delta,
+                  TxType:               txType,
+                  Note: note, Notes: note, UserName: note, ChangeNote: note
+                }))}`
+              );
+              const moveId = res.WarehouseMove && res.WarehouseMove.MoveId;
+              if (moveId) {
+                try { await lwPost('Stock/CompleteWarehouseMove', `request=${encodeURIComponent(JSON.stringify({ MoveId: moveId }))}`); } catch (_) {}
+              }
+              done = true;
+              results.push({ sku, success: true, action: `+${delta} written into ${binRack}` });
+              break;
+            } catch (e) { console.log(`[add] WriteOn txType=${txType} failed: ${e.message}`); }
+          }
+        }
+
+        // Attempt 3 — ADJ fallback: if ADJ has the item, move it
+        if (!done && adjId) {
+          try {
+            const adjBatchId = await findBatchId(adjId, stockItemId);
+            if (adjBatchId) {
+              await warehouseMove(adjBatchId, countedId, delta, note);
+              done = true;
+              results.push({ sku, success: true, action: `+${delta} moved from ADJ → ${binRack}` });
+            }
+          } catch (e) { console.log(`[add] ADJ fallback failed: ${e.message}`); }
+        }
+
+        if (!done) {
+          results.push({ sku, success: false, error: `Cannot write stock for ${sku}: Linnworks API does not support creating stock via API on this account. Please manually add stock in Linnworks desktop, then re-count.` });
+        }
       }
 
       // Log success
